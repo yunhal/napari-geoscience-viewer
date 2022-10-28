@@ -1,0 +1,9 @@
+pyproject.toml
+setup.cfg
+napari_hdf5_netcdf_viewer/__init__.py
+napari_hdf5_netcdf_viewer/quick_hdf5_netcdf_viewer.py
+napari_hdf5_netcdf_viewer.egg-info/PKG-INFO
+napari_hdf5_netcdf_viewer.egg-info/SOURCES.txt
+napari_hdf5_netcdf_viewer.egg-info/dependency_links.txt
+napari_hdf5_netcdf_viewer.egg-info/requires.txt
+napari_hdf5_netcdf_viewer.egg-info/top_level.txt
