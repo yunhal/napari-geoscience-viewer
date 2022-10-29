@@ -12,7 +12,7 @@ H5_FILENAME_LIST = ['h5', 'hdf5', 'hdf']
 NETCDF_FILENAME_LIST = ['nc', 'netcdf', 'ncf', 'nc4']  
 
 
-class MyClass:
+class FileReader:
 
     def __init__(self, viewer):
         self.data_list = []
@@ -56,21 +56,7 @@ class MyClass:
                     print("                                               ")
 
 
-    '''
-    def h5py_dataset_iterator(g, prefix=''):
-        for key, item in g.items():
-            if isinstance(item, h5py.Dataset): # test for dataset
-                #path = prefix + key + ': ' + str(g[key].shape)
-                path = '{}/{} : shape = {} and dtype = {}'.format(prefix, key, str(g[key].shape), str(g[key].dtype) )
-                yield (path, item)
-            elif isinstance(item, h5py.Group): # test for group (go down)
-                #prefix = prefix + '  '
-                path = '{}/{}'.format(prefix, key )
-                yield from h5py_dataset_iterator(item, path)
-    '''
-
-
-    def print_netcdf (self, fn):
+    def print_netcdf(self, fn):
 
         """
         Parameters
@@ -160,9 +146,6 @@ class MyClass:
                 var_path = str(d)
                 data = f[var_path]
                 np_data = np.array(data)
-
-                print(d, data.ncattrs())
-
                     
                 if hasattr(data, 'shape'):
 
@@ -182,67 +165,6 @@ class MyClass:
                         # read as image
                         layer = self.viewer.add_image(np_data, name= var_path)
 
-def load_path(path: str):
-
-    """read file structure and open the images with napari if the path file format is hdf or netcdf.
-    Parameters
-    ----------
-    path: str
-        hdf5 or netcdf file path
-    -------
-    """
-
-    viewer = napari.Viewer()
-    viewer.axes.visible = True
-
-    plugin = MyClass(viewer)
-
-    if path.endswith(tuple(H5_FILENAME_LIST)) :
-        with h5py.File(path,'r') as f:
-            print("                                               ")
-            print(" =======", path, " file structure start =========")
-
-            f.visititems(plugin.print_h5_objs)
-
-            print(" =======", path, " file structure end============")
-            print("                                               ")
-        plugin.h5_to_napari(path)
-    
-    # check if a netcdf file
-    elif path.endwith(tuple(NETCDF_FILENAME_LIST)) :
-        print("                                               ")
-        print(" =======", path, " file structure start =========")   
-
-        plugin.print_netcdf(path)
-
-        print(" =======", path, " file structure end============")
-        print("                                               ")
-
-        plugin.netcdf_to_napari(path)
-    
-    # file is not either h5 or netcdf
-    else:
-        print("Failure: {} is recognized as neither hdf5 nor netcdf".format(path))
-
-@magic_factory
-def make_widget(file_path: "pathlib.Path" = Path('/Users/yunhalee/nc_h5_files/OMI-Aura_L3-OMTO3e_2005m1214_v002-2006m0929t143855.h5')):
-    filename = str(file_path)
-    load_path(filename)
-
-
-
-if __name__ == "__main__":
-    fpath = '/Users/yunhalee/nc_h5_files/OMI-Aura_L3-OMTO3e_2005m1214_v002-2006m0929t143855.h5'
-
-    viewer = napari.Viewer()
-    viewer.window.add_dock_widget(make_widget(), area="right")  
-
-    napari.run()
-
-    load_path(fpath)
-
-
-
 
 def set_scale_at_axis(layer, axis=0, value=1):
 
@@ -261,7 +183,7 @@ def set_scale_at_axis(layer, axis=0, value=1):
 
 
 '''
-working version 
+need to update in future
 
 def geo_view_enabled (data):
 
@@ -276,3 +198,63 @@ def geo_view_enabled (data):
         viewer.camera.angles = (-1.7571935971733401, -26.823353526707475, -77.73048528666025)
 
 '''
+
+def load_path(path: str):
+
+    """read file structure and open the images with napari if the path file format is hdf or netcdf.
+    Parameters
+    ----------
+    path: str
+        hdf5 or netcdf file path
+    -------
+    """
+
+    viewer = napari.Viewer()
+    viewer.axes.visible = True
+
+    plugin = FileReader(viewer)
+
+    if path.endswith(tuple(H5_FILENAME_LIST)) :
+        with h5py.File(path,'r') as f:
+            print("                                               ")
+            print(" =======", path, " file structure start =========")
+
+            f.visititems(plugin.print_h5_objs)
+
+            print(" =======", path, " file structure end============")
+            print("                                               ")
+        plugin.h5_to_napari(path)
+    
+    # check if a netcdf file
+    elif path.endswith(tuple(NETCDF_FILENAME_LIST)) :
+        print("                                               ")
+        print(" =======", path, " file structure start =========")   
+
+        plugin.print_netcdf(path)
+
+        print(" =======", path, " file structure end============")
+        print("                                               ")
+
+        plugin.netcdf_to_napari(path)
+    
+    # file is not either h5 or netcdf
+    else:
+        print("Failure: {} is recognized as neither hdf5 nor netcdf".format(path))
+
+@magic_factory
+def make_widget(file_path: "pathlib.Path" = Path()):
+    filename = str(file_path)
+    load_path(filename)
+
+
+if __name__ == "__main__":
+
+    fpath = '/Users/yunhalee/nc_h5_files/OMI-Aura_L3-OMTO3e_2005m1214_v002-2006m0929t143855.h5'
+
+    viewer = napari.Viewer()
+    viewer.window.add_dock_widget(make_widget(), area="right")  
+
+    napari.run()
+
+    load_path(fpath)
+
