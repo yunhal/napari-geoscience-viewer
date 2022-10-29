@@ -1,9 +1,0 @@
-Metadata-Version: 2.1
-Name: napari-hdf5-netcdf-viewer
-Version: 0.0.1
-Summary: A napari plugin for quick-viewing HDF5 and NetCDF files
-Home-page: https://github.com/yunhal/
-Author: Yunha Lee
-Author-email: yunha.lee.00@gmail.com
-Classifier: Framework :: napari
-Description-Content-Type: text/markdown

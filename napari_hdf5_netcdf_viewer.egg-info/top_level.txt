@@ -1,1 +1,0 @@
-napari_hdf5_netcdf_viewer

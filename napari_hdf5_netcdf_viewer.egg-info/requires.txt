@@ -1,5 +1,0 @@
-numpy
-h5py
-netCDF4
-pathlib
-magicgui
