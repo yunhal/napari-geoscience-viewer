@@ -1,5 +1,5 @@
 name: napari-hdf5-netcdf-viewer
-display_name: hdf5 & netCDF reader Plugin
+display_name: hdf5-netCDF reader Plugin
 contributions:
   commands:
     - id: napari-hdf5-netcdf-viewer.get_reader
