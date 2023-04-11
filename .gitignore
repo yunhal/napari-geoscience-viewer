@@ -1,0 +1,23 @@
+
+# Distribution / packaging
+build/
+*.egg-info
+
+
+# Byte-compiled / optimized / DLL files
+napari_hdf5_netcdf_viewer/__pycache__/
+src/napari_hdf5_netcdf_viewer/__pycache__/
+src/napari_hdf5_netcdf_viewer/_reader.py
+src/napari_hdf5_netcdf_viewer/_widget.py
+src/napari_hdf5_netcdf_viewer/_tests/test_widget.py
+src/napari_hdf5_netcdf_viewer/_tests/test_reader.py
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
