@@ -1,16 +1,18 @@
 import napari
 import h5py
+import netCDF4 as nc
 import numpy as np
 import pathlib
 from pathlib import Path
-
+import xarray as xr
 from magicgui import magicgui, magic_factory
-import netCDF4 as nc
+import sys
+from napari_geojson import napari_get_reader
+
 
 # potential file extensions: 
 H5_FILENAME_LIST = ['h5', 'hdf5', 'hdf']
 NETCDF_FILENAME_LIST = ['nc', 'netcdf', 'ncf', 'nc4']  
-
 
 class FileReader:
 
@@ -85,7 +87,7 @@ class FileReader:
             # For netcdf, print(f) will do the same thing as above but it is not pretty. 
 
 
-    def h5_to_napari(self, fn):
+    def all_h5_to_napari(self, fn):
 
         """
         Parameters
@@ -131,7 +133,7 @@ class FileReader:
                             layer = self.viewer.add_image(np_data, name= var_path)
 
 
-    def netcdf_to_napari(self, fn):
+    def all_netcdf_to_napari(self, fn):
 
         """
         Parameters
@@ -164,7 +166,140 @@ class FileReader:
 
                         # read as image
                         layer = self.viewer.add_image(np_data, name= var_path)
+    
 
+    def get_geo_dataset(self, fn, xr_data):
+
+        """
+        Parameters
+        ----------
+        fn : h5netcdf file path 
+        xr_data : data variable name you want to visualize (e.g., "O3", "PM25")
+        """
+
+        file =xr.open_dataset(fn, engine="h5netcdf")
+
+        df = file[xr_data]
+        print("data has the following coords : ", df.coords)
+        # boolean variables to check the dimensions for NAPARI
+        LONG_EXIST = False
+        LAT_EXIST = False
+        VERT_EXIST = False
+
+        # get longitude coords
+        long_list =['lon', 'longitude', 'long', 'x','LON','LONGITUDE', 'LONG', 'X','XLONG']
+
+        for x in long_list:
+            
+            if(x in df.coords):
+
+                LONG_EXIST=True
+                longitude = df.coords[x].values
+                lon_atrib = df.coords[x].attrs
+                longitude_scale = (np.amax(longitude) - np.amin(longitude))/len(longitude)
+
+                print('original long is ', longitude[:10])
+                print(np.amin(longitude),np.amax(longitude)) 
+
+                if(np.amin(longitude) >= 0 and np.amax(longitude) > 180):
+                    print("longitude is shifting to 0 to -180")
+                    # This condition won't work well for regional cases
+
+                    # longitude is shifting from 0~360 to -180~180
+                    df.coords[x] = (df.coords[x] + 180) % 360 - 180
+                    df = df.sortby(df.lon)
+                    df.coords[x].attrs = lon_atrib
+                
+                    # overwrite with shifted longitude
+                    longitude = df.coords[x].values
+                
+                    print('shifted long is ', longitude[:10])
+                
+        # Xarray converts 'missing_values' and '_FillValue' to NaN as a default. 
+        if hasattr(df.attrs, 'fmissing_value'): 
+            fvalue = df.attrs['fmissing_value']
+            print ("fmissing_value was {} and is replaced with np.nan".format(fvalue))
+            print(np_data.shape, fvalue.shape)
+            np_data [np_data == fvalue] = np.nan
+
+        # get latitude coords
+        lat_list =['lat', 'latitude', 'y', 'LAT', 'LATITUDE', 'Y','XLAT']
+
+        for x in lat_list:
+            if(x in df.coords):
+                LAT_EXIST=True
+                latitude = df.coords[x].values
+                latitude_scale = (np.amax(latitude) - np.amin(latitude))/len(latitude)
+        #print('lat is ', latitude[:10]) 
+
+        # get vertical coords
+        lev_list =['lev', 'levels', 'level','vertical', 'height','altitude', 'pressure','ver']
+
+        for x in lev_list:
+            if(x in df.coords):
+                VERT_EXIST=True
+                vertical = df.coords[x].values
+                #print('lev is ', df.coords[x].values[:10])
+
+                vertical_scale = 5 # hard-coded number  
+
+                # first vertical layer to be near the groun
+                if(vertical[0] < vertical[-1]):
+                    df = df.sortby(x, ascending=False)
+        
+        # for WRF or CMAQ, it may fail to get lat and long information, so try this
+        if (LONG_EXIST == False) or (LAT_EXIST == False):
+            print("Either Longitute or Latitude is available: LONG_EXIST {}; LAT_EXIST {}".format(LONG_EXIST, LAT_EXIST) )
+            print("Current version may not work for WRF, WRF-Chem, and CMAQ model outputs")
+            sys.exit("geo coords is not available")
+        
+
+        np_data = np.asarray(df.values)
+        print(xr_data, df.attrs)
+
+        from napari.layers import Shapes
+
+        my_shapes = [layer for layer in self.viewer.layers if isinstance(layer, Shapes)]
+        print(my_shapes)
+
+        if "Country borders" not in str(my_shapes): 
+            worldmap, world_shape_type = get_world_geojson()
+            shape_layer = self.viewer.add_shapes(worldmap, name = "Country borders", shape_type=world_shape_type)
+            if (LONG_EXIST == True) and (LAT_EXIST == True) and (VERT_EXIST == False ):
+                print("latitude array has been inversed for napari visualization")
+                set_scale_at_axis(shape_layer, axis=-2, value=-1)
+
+        if (LONG_EXIST == True) and (LAT_EXIST == True) and (VERT_EXIST == False ):
+            
+            print("latitude array has been inversed for napari visualization")
+
+            layer = self.viewer.add_image(np_data, name= xr_data)
+            
+            self.viewer.dims.axis_labels = ("lat", "lon") 
+            layer.colormap = 'hsv'
+            layer.opacity = 0.5
+            layer.scale = (1, latitude_scale*-1, longitude_scale)
+            layer.translate  = (0, 90, 0)
+            
+
+        if (LONG_EXIST == True) and (LAT_EXIST == True) and (VERT_EXIST == True ):
+            layer = self.viewer.add_image(np_data, name= xr_data)
+            self.viewer.dims.axis_labels = ("height", "lat", "lon") 
+            layer.colormap = 'hsv'
+            layer.opacity = 0.5
+            self.viewer.dims.ndisplay = 3
+            self.viewer.camera.angles = (-1.7571935971733401, -26.823353526707475, -77.73048528666025)
+            layer.translate  = (0, 0, -90, 0)
+            layer.scale = (1, vertical_scale, latitude_scale, longitude_scale)
+
+def get_world_geojson():
+
+    # Set the domain for defining the plot region.
+    fname= "/Users/yunhalee/Desktop/Napari/napari-geo-worldmap/world_0_360.geojson"
+    reader = napari_get_reader(fname)
+    layer_data = reader(fname)
+
+    return layer_data[0][0], layer_data[0][1]["shape_type"]
 
 def set_scale_at_axis(layer, axis=0, value=1):
 
@@ -181,39 +316,20 @@ def set_scale_at_axis(layer, axis=0, value=1):
     curr_scale[axis] = value
     layer.scale = curr_scale
 
+def load_path(viewer, path: str):
 
-'''
-need to update in future
-
-def geo_view_enabled (data):
-
-    if (data.ndim == 2):
-        print("latitude array has been inversed for napari visualization")
-        set_scale_at_axis(layer, axis = -2, value = -1)
-
-    if (data.ndim >= 3):
-        set_scale_at_axis(layer, axis = -2, value = -1)
-        viewer.dims.axis_labels = ("height", "lat", "lon") 
-        viewer.dims.ndisplay = 3
-        viewer.camera.angles = (-1.7571935971733401, -26.823353526707475, -77.73048528666025)
-
-'''
-
-def load_path(path: str):
-
-    """read file structure and open the images with napari if the path file format is hdf or netcdf.
+    """print the file structure and create a list of data to pass to the napari.
     Parameters
     ----------
+    viewer - napari viewer
     path: str
         hdf5 or netcdf file path
     -------
     """
 
-    viewer = napari.Viewer()
-    viewer.axes.visible = True
-
     plugin = FileReader(viewer)
 
+    # print the file structure and create the data list for napari
     if path.endswith(tuple(H5_FILENAME_LIST)) :
         with h5py.File(path,'r') as f:
             print("                                               ")
@@ -223,8 +339,7 @@ def load_path(path: str):
 
             print(" =======", path, " file structure end============")
             print("                                               ")
-        plugin.h5_to_napari(path)
-    
+        # turn off plugin.all_h5_to_napari(path)
     # check if a netcdf file
     elif path.endswith(tuple(NETCDF_FILENAME_LIST)) :
         print("                                               ")
@@ -234,27 +349,44 @@ def load_path(path: str):
 
         print(" =======", path, " file structure end============")
         print("                                               ")
-
-        plugin.netcdf_to_napari(path)
-    
+        # turn off plugin.all_netcdf_to_napari(path)
     # file is not either h5 or netcdf
     else:
         print("Failure: {} is recognized as neither hdf5 nor netcdf".format(path))
+        sys.exit("Not acceptable files")
 
-@magic_factory
-def make_widget(file_path: "pathlib.Path" = Path()):
+    return plugin.data_list
+
+def data_to_napari(viewer, path: str):
+    """read the data arrays and visualized with napari.
+    Parameters
+    ----------
+    viewer: napari viewer
+    path: str
+        hdf5 or netcdf file path
+    -------
+    """
+    plugin = FileReader(viewer)
+
+    data_list = load_path(viewer, path)
+
+    @magic_factory (dropdown={"choices": data_list})
+    def make_widget_dropdown(dropdown=data_list[0]):
+        varname = str(dropdown)
+        print(f"varname {varname}")
+        plugin.get_geo_dataset(path, varname)
+
+    viewer.window.add_dock_widget(make_widget_dropdown(), area="right") 
+
+@magic_factory ()
+def make_widget(viewer: "napari.viewer.Viewer", file_path: "pathlib.Path" = Path()):
     filename = str(file_path)
-    load_path(filename)
-
+    load_path(viewer, filename)
+    data_to_napari(viewer, filename)
 
 if __name__ == "__main__":
-
-    fpath = '/Users/yunhalee/nc_h5_files/OMI-Aura_L3-OMTO3e_2005m1214_v002-2006m0929t143855.h5'
 
     viewer = napari.Viewer()
     viewer.window.add_dock_widget(make_widget(), area="right")  
 
     napari.run()
-
-    load_path(fpath)
-
