@@ -1,0 +1,14 @@
+name: napari-geoscience-viewer
+display_name: napari geoscience file reader Plugin
+contributions:
+  commands:
+    - id: napari-geoscience-viewer.get_reader
+      python_name: napari_geoscience_viewer.quick_hdf5_netcdf_viewer:make_widget
+      title: Open geoscience data with hdf5-netcdf Plugin
+  widgets:
+    - command: napari-geoscience_viewer.get_reader
+      display_name: Open geoscience data with hdf5-netcdf Plugin
+  # readers:
+  #   - command: napari-geoscience-viewer.get_reader
+  #     accepts_directories: false
+  #     filename_patterns: ['*.hdf', '*.h5', '*.netcdf', '*.nc', '*.nc4', 'ncf']

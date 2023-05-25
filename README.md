@@ -1,4 +1,4 @@
-# napari-hdf5-netcdf-viewer
+# napari-geoscience-viewer
 
 A napari plugin for visualizing geoscience HDF5 and netCDF data
 
