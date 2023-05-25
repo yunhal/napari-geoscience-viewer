@@ -87,12 +87,13 @@ class FileReader:
             # For netcdf, print(f) will do the same thing as above but it is not pretty. 
 
 
-    def all_h5_to_napari(self, fn):
+    def all_h5_to_napari(self, fn, h5_varname):
 
         """
         Parameters
         ----------
         fn : netcdf file path 
+        h5_varname : variable name
         """
 
         label_name = 'label'
@@ -100,37 +101,35 @@ class FileReader:
 
         with h5py.File(fn,'r') as f:
 
-            for d in self.data_list:
+            var_path = str(h5_varname)
+            data = f[var_path]
+            np_data = np.array(data)
 
-                var_path = str(d)
-                data = f[var_path]
-                np_data = np.array(data)
+            if hasattr(data, 'shape'):
 
-                if hasattr(data, 'shape'):
+                if data.ndim >= 2: 
 
-                    if data.ndim >= 2: 
+                    if (label_name.casefold() in var_path.casefold() ):
+                        # read as labels
+                        print("WARNING: label layer is determined, based on matching {} in the data path".format(label_name))
+                        layer = self.viewer.add_labels(np_data, name= var_path)
 
-                        if (label_name.casefold() in var_path.casefold() ):
-                            # read as labels
-                            print("WARNING: label layer is determined, based on matching {} in the data path".format(label_name))
-                            layer = self.viewer.add_labels(np_data, name= var_path)
+                    elif (point_name.casefold() in var_path.casefold() ):
+                        # read as points
+                        print("WARNING: point layer is determined, based on matching {} in the data path".format(point_name))
+                        layer = self.viewer.add_points(np_data, name= var_path)
+                    else: 
+                        # read as image
+                        for key, val in data.attrs.items():
+                            if (key == "_FillValue" ): 
+                                print("_FillValue exits", len(np_data [np_data == data.attrs["_FillValue"][0]]))
+                                np_data [np_data == data.attrs["_FillValue"][0]] = np.nan
+                                
+                            elif (key == "MissingValue" ): 
+                                print("MissingValue exits", len(np_data [np_data == data.attrs["MissingValue"][0]]))
+                                np_data [np_data == data.attrs["MissingValue"][0]] = np.nan
 
-                        elif (point_name.casefold() in var_path.casefold() ):
-                            # read as points
-                            print("WARNING: point layer is determined, based on matching {} in the data path".format(point_name))
-                            layer = self.viewer.add_points(np_data, name= var_path)
-                        else: 
-                            # read as image
-                            for key, val in data.attrs.items():
-                                if (key == "_FillValue" ): 
-                                    print("_FillValue exits", len(np_data [np_data == data.attrs["_FillValue"][0]]))
-                                    np_data [np_data == data.attrs["_FillValue"][0]] = np.nan
-                                    
-                                elif (key == "MissingValue" ): 
-                                    print("MissingValue exits", len(np_data [np_data == data.attrs["MissingValue"][0]]))
-                                    np_data [np_data == data.attrs["MissingValue"][0]] = np.nan
-
-                            layer = self.viewer.add_image(np_data, name= var_path)
+                        layer = self.viewer.add_image(np_data, name= var_path)
 
 
     def all_netcdf_to_napari(self, fn):
@@ -264,7 +263,7 @@ class FileReader:
 
         if "Country borders" not in str(my_shapes): 
             worldmap, world_shape_type = get_world_geojson()
-            shape_layer = self.viewer.add_shapes(worldmap, name = "Country borders", shape_type=world_shape_type)
+            shape_layer = self.viewer.add_shapes(worldmap, name = "Country borders", shape_type=world_shape_type, edge_width = 0)
             if (LONG_EXIST == True) and (LAT_EXIST == True) and (VERT_EXIST == False ):
                 print("latitude array has been inversed for napari visualization")
                 set_scale_at_axis(shape_layer, axis=-2, value=-1)
@@ -372,9 +371,15 @@ def data_to_napari(viewer, path: str):
 
     @magic_factory (dropdown={"choices": data_list})
     def make_widget_dropdown(dropdown=data_list[0]):
+
         varname = str(dropdown)
         print(f"varname {varname}")
-        plugin.get_geo_dataset(path, varname)
+
+        # HDF seems not to work well with Xarray (to get dimensions), so for now only simple visualization is used 
+        if path.endswith(tuple(H5_FILENAME_LIST)) :
+            plugin.all_h5_to_napari(path, varname)
+        else: 
+            plugin.get_geo_dataset(path, varname)
 
     viewer.window.add_dock_widget(make_widget_dropdown(), area="right") 
 
